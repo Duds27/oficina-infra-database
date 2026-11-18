@@ -14,7 +14,7 @@ publicadas no **Secrets Manager**, consumidas pelo app (`oficina-app`) e pela La
 ## Tecnologias
 
 - **Terraform** (provider AWS ~> 5.60), **Amazon RDS for MySQL 8.0**, **Secrets Manager**.
-- Estado remoto em **S3** + trava **DynamoDB**. CI/CD com **GitHub Actions** (OIDC).
+- Estado remoto em **S3** + trava **DynamoDB**. CI/CD com **GitHub Actions**, com OIDC ou chave de acesso.
 
 ## Arquitetura
 
@@ -45,7 +45,10 @@ terraform init -backend-config="bucket=<S3>" -backend-config="key=infra-database
 terraform apply -var="environment=homolog" -var="state_bucket=<S3>"
 ```
 
-Variáveis/segredos no repo: `AWS_DEPLOY_ROLE_ARN` (secret); `AWS_REGION`, `TF_STATE_BUCKET`, `TF_LOCK_TABLE` (variables).
+Variáveis/segredos no repo:
+
+- **Secrets:** a credencial da AWS, `AWS_ACCESS_KEY_ID` com `AWS_SECRET_ACCESS_KEY` (conta sem OIDC) ou `AWS_DEPLOY_ROLE_ARN`. Cadastre só uma das duas formas. A conta do grupo nega o provider OIDC no IAM ([README do infra-k8s](https://github.com/Duds27/oficina-infra-k8s#conta-aws)).
+- **Variables:** `AWS_REGION` (`us-east-2`, a única região liberada na conta), `TF_STATE_BUCKET` e `TF_LOCK_TABLE`.
 
 ## Outputs
 

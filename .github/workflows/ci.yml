@@ -17,13 +17,46 @@ jobs:
 
       - run: terraform fmt -check -recursive
 
-      - name: Configurar credenciais AWS (OIDC)
+      - name: Conferir a configuração da AWS
+        id: config
+        env:
+          # OIDC (AWS_DEPLOY_ROLE_ARN) ou chave de acesso (AWS_ACCESS_KEY_ID e AWS_SECRET_ACCESS_KEY).
+          TEM_CREDENCIAL: ${{ secrets.AWS_DEPLOY_ROLE_ARN != '' || (secrets.AWS_ACCESS_KEY_ID != '' && secrets.AWS_SECRET_ACCESS_KEY != '') }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+          TF_LOCK_TABLE: ${{ vars.TF_LOCK_TABLE }}
+        run: |
+          faltando=""
+          for v in AWS_REGION TF_STATE_BUCKET TF_LOCK_TABLE; do [ -n "${!v}" ] || faltando="$faltando $v"; done
+          [ "$TEM_CREDENCIAL" = "true" ] || faltando="$faltando AWS_DEPLOY_ROLE_ARN(ou AWS_ACCESS_KEY_ID+AWS_SECRET_ACCESS_KEY)"
+          if [ -n "$faltando" ]; then
+            # Repositório ainda não ligado à AWS: o plan é pulado, sem derrubar o PR.
+            echo "::warning::Plan pulado: falta configurar no repositório:$faltando (README)."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # OIDC (secret AWS_DEPLOY_ROLE_ARN) ou chave de acesso de um usuário IAM (secrets
+      # AWS_ACCESS_KEY_ID e AWS_SECRET_ACCESS_KEY), para contas em que a organização
+      # bloqueia o provider OIDC do IAM. Cadastre só um dos dois.
+      - name: Configurar credenciais AWS
+        if: steps.config.outputs.ok == 'true'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.AWS_REGION }}
 
+      - name: Validate (sem backend)
+        if: steps.config.outputs.ok != 'true'
+        run: |
+          terraform init -backend=false
+          terraform validate
+
       - name: Init + Validate + Plan
+        if: steps.config.outputs.ok == 'true'
         run: |
           terraform init \
             -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}" \
