@@ -1,6 +1,7 @@
 variable "aws_region" {
-  type    = string
-  default = "us-east-1"
+  type = string
+  # A conta do grupo (Free plan, numa organização gerenciada pela AWS) só libera a us-east-2.
+  default = "us-east-2"
 }
 
 variable "project" {
